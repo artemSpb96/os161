@@ -156,7 +156,9 @@ lock_create(const char *name)
 
 	HANGMAN_LOCKABLEINIT(&lock->lk_hangman, lock->lk_name);
 
-	// add stuff here as needed
+    lock->sem = sem_create("lock_semaphore", 1);
+    /* Lock is holding a thread only in critical section. */
+    lock->t = NULL;
 
 	return lock;
 }
@@ -165,9 +167,9 @@ void
 lock_destroy(struct lock *lock)
 {
 	KASSERT(lock != NULL);
+    KASSERT(lock->t == NULL);
 
-	// add stuff here as needed
-
+    sem_destroy(lock->sem);
 	kfree(lock->lk_name);
 	kfree(lock);
 }
@@ -175,36 +177,42 @@ lock_destroy(struct lock *lock)
 void
 lock_acquire(struct lock *lock)
 {
+    KASSERT(lock != NULL);
+    
 	/* Call this (atomically) before waiting for a lock */
-	//HANGMAN_WAIT(&curthread->t_hangman, &lock->lk_hangman);
+	HANGMAN_WAIT(&curthread->t_hangman, &lock->lk_hangman);
 
-	// Write this
+    P(lock->sem);
 
-	(void)lock;  // suppress warning until code gets written
+    KASSERT(lock->sem->sem_count == 0);
+    KASSERT(lock->t == NULL);
+    lock->t = curthread;
 
 	/* Call this (atomically) once the lock is acquired */
-	//HANGMAN_ACQUIRE(&curthread->t_hangman, &lock->lk_hangman);
+	HANGMAN_ACQUIRE(&curthread->t_hangman, &lock->lk_hangman);
 }
 
 void
 lock_release(struct lock *lock)
 {
+    KASSERT(lock != NULL);
+    KASSERT(lock_do_i_hold(lock));
+
+    lock->t = NULL;
+
+    KASSERT(lock->sem->sem_count == 0);
+    V(lock->sem);
+
+
 	/* Call this (atomically) when the lock is released */
-	//HANGMAN_RELEASE(&curthread->t_hangman, &lock->lk_hangman);
-
-	// Write this
-
-	(void)lock;  // suppress warning until code gets written
+	HANGMAN_RELEASE(&curthread->t_hangman, &lock->lk_hangman);
 }
 
 bool
 lock_do_i_hold(struct lock *lock)
 {
-	// Write this
-
-	(void)lock;  // suppress warning until code gets written
-
-	return true; // dummy until code gets written
+    KASSERT(lock != NULL);
+	return lock->t == curthread;
 }
 
 ////////////////////////////////////////////////////////////
